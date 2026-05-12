@@ -24,7 +24,7 @@ export default function Pipeline() {
       try {
         // ၁။ သိမ်းထားတဲ့ Audio ဖိုင်နဲ့ Script ကို ပြန်ခေါ်မယ်
         const dataUrl = localStorage.getItem('pendingAudio');
-        const pendingScript = localStorage.getItem('pendingScript'); // Script ကို ပြန်ခေါ်တဲ့ အဆင့်
+        const pendingScript = localStorage.getItem('pendingScript'); 
 
         if (!dataUrl || !pendingScript) {
           throw new Error("Missing audio or script. Please upload again.");
@@ -36,7 +36,7 @@ export default function Pipeline() {
 
         const formData = new FormData();
         formData.append('audio', audioBlob, 'upload.mp3');
-        formData.append('script', pendingScript); // Script ကိုပါ Backend ဆီ တစ်ခါတည်း ထည့်ပို့လိုက်ပြီ
+        formData.append('script', pendingScript); 
 
         // UI အမြင်ပိုင်းအတွက် ခြေလှမ်းတွေကို ပြောင်းပေးနေမယ်
         const stepInterval = setInterval(() => {
@@ -65,7 +65,8 @@ export default function Pipeline() {
           }, 1500);
         } else {
           clearInterval(stepInterval);
-          throw new Error(data.error || "Generation failed at backend");
+          // ဒီနေရာမှာ Error အတိအကျကို ပြပေးအောင် ပြင်ထားပါတယ်
+          throw new Error(data.details ? `Backend Error: ${data.details}` : (data.error || "Generation failed at backend"));
         }
       } catch (err: any) {
         setError(err.message);
@@ -122,3 +123,4 @@ export default function Pipeline() {
     </main>
   );
 }
+
