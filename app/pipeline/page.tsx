@@ -21,35 +21,46 @@ export default function Pipeline() {
   useEffect(() => {
     const generateReel = async () => {
       try {
-        // ၁။ Audio ဖိုင်ကို Local Storage သို့မဟုတ် State ကနေ ယူရပါမယ်
-        // (လောလောဆယ် Logic အမှန်ဖြစ်အောင် တိုက်ရိုက် Fetch လုပ်ပြထားပါတယ်)
-        
-        // Render Backend URL (အစ်ကို့ URL နဲ့ အစားထိုးထားပါတယ်)
-        const BACKEND_URL = "https://autoreelai-backend.onrender.com/api/generate";
+        // ၁။ သိမ်းထားတဲ့ File ကို ပြန်ခေါ်မယ်
+        const dataUrl = localStorage.getItem('pendingAudio');
+        if (!dataUrl) {
+          throw new Error("No audio file found. Please upload again.");
+        }
 
-        // ဒီနေရာမှာ အဆင့်တွေကို အမြင်ပိုင်းအရ ပြောင်းပေးဖို့ Timer ပေးထားတာပါ
+        // ၂။ Base64 ကနေ Backend လိုချင်တဲ့ Blob File ပုံစံ ပြန်ပြောင်းမယ်
+        const responseBlob = await fetch(dataUrl);
+        const audioBlob = await responseBlob.blob();
+
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'upload.mp3');
+
+        // UI အမြင်ပိုင်းအတွက် ခြေလှမ်းတွေကို ပြောင်းပေးနေမယ်
         const stepInterval = setInterval(() => {
           setCurrentStep((prev) => (prev < 4 ? prev + 1 : prev));
-        }, 3000);
+        }, 4000);
 
-        // ၂။ Backend သို့ လှမ်းပို့ခြင်း
+        // ၃။ Render Backend ဆီ ပို့မယ်
+        const BACKEND_URL = "https://autoreelai-backend.onrender.com/api/generate";
+        
         const response = await fetch(BACKEND_URL, {
           method: 'POST',
-          // Note: formData ထဲမှာ audio ပါဖို့ လိုအပ်ပါတယ် (Home page ကနေ pass လုပ်လာရမှာပါ)
+          body: formData
         });
 
         const data = await response.json();
 
         if (data.success) {
           clearInterval(stepInterval);
-          setCurrentStep(5); // Rendering Reel (Last Step)
+          setCurrentStep(5); // ပြီးဆုံးကြောင်း ပြမယ်
           
-          // ဗီဒီယိုရပြီဆိုရင် Preview စာမျက်နှာကို URL လှမ်းပို့မယ်
+          // အလုပ်ပြီးတာနဲ့ Storage ထဲက ဖျက်ပြီး Preview ကို သွားမယ်
+          localStorage.removeItem('pendingAudio');
           setTimeout(() => {
             router.push(`/preview?url=${encodeURIComponent(data.videoUrl)}`);
-          }, 2000);
+          }, 1500);
         } else {
-          throw new Error(data.error || "Generation failed");
+          clearInterval(stepInterval);
+          throw new Error(data.error || "Generation failed at backend");
         }
       } catch (err: any) {
         setError(err.message);
@@ -57,6 +68,7 @@ export default function Pipeline() {
       }
     };
 
+    // Component တက်လာတာနဲ့ တစ်ခါတည်း စ run မယ်
     generateReel();
   }, [router]);
 
@@ -66,15 +78,15 @@ export default function Pipeline() {
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
         <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
         <p className="text-gray-400 mb-6">{error}</p>
-        <button onClick={() => router.push("/")} className="px-6 py-2 bg-gray-800 rounded-xl">Go Back</button>
+        <button onClick={() => router.push("/")} className="px-6 py-2 bg-gray-800 text-white rounded-xl">Try Again</button>
       </main>
     );
   }
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md glass-card rounded-3xl p-8">
-        <h2 className="text-2xl font-bold mb-8 text-center">Building Your Reel</h2>
+      <div className="w-full max-w-md bg-gray-900/50 backdrop-blur-lg border border-gray-800 rounded-3xl p-8">
+        <h2 className="text-2xl font-bold mb-8 text-center text-white">Building Your Reel</h2>
         
         <div className="space-y-6">
           {steps.map((step, idx) => {
@@ -105,4 +117,3 @@ export default function Pipeline() {
     </main>
   );
 }
-
