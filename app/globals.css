@@ -5,13 +5,17 @@
 body {
   background-color: #050505;
   color: #ffffff;
-  font-family: 'Inter', sans-serif;
+  /* Font ကြောင့် Error မတက်အောင် standard sans-serif ကို အရင်သုံးထားပါမယ် */
+  font-family: ui-sans-serif, system-ui, sans-serif;
   overflow-x: hidden;
+  margin: 0;
+  padding: 0;
 }
 
 .glass-card {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
 }
