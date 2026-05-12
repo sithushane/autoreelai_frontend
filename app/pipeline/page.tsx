@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 
+// အသံကနေ စာပြောင်းတဲ့အဆင့် မလိုတော့လို့ နာမည်လေးတွေ ပြင်ထားပါတယ်
 const steps = [
-  "Transcribing Audio",
-  "Analyzing Segments",
+  "Analyzing Script & Audio",
+  "Planning Video Scenes",
   "Fetching Stock Footage",
   "Selecting Background Music",
   "Rendering Captions",
@@ -21,10 +22,12 @@ export default function Pipeline() {
   useEffect(() => {
     const generateReel = async () => {
       try {
-        // ၁။ သိမ်းထားတဲ့ File ကို ပြန်ခေါ်မယ်
+        // ၁။ သိမ်းထားတဲ့ Audio ဖိုင်နဲ့ Script ကို ပြန်ခေါ်မယ်
         const dataUrl = localStorage.getItem('pendingAudio');
-        if (!dataUrl) {
-          throw new Error("No audio file found. Please upload again.");
+        const pendingScript = localStorage.getItem('pendingScript'); // Script ကို ပြန်ခေါ်တဲ့ အဆင့်
+
+        if (!dataUrl || !pendingScript) {
+          throw new Error("Missing audio or script. Please upload again.");
         }
 
         // ၂။ Base64 ကနေ Backend လိုချင်တဲ့ Blob File ပုံစံ ပြန်ပြောင်းမယ်
@@ -33,6 +36,7 @@ export default function Pipeline() {
 
         const formData = new FormData();
         formData.append('audio', audioBlob, 'upload.mp3');
+        formData.append('script', pendingScript); // Script ကိုပါ Backend ဆီ တစ်ခါတည်း ထည့်ပို့လိုက်ပြီ
 
         // UI အမြင်ပိုင်းအတွက် ခြေလှမ်းတွေကို ပြောင်းပေးနေမယ်
         const stepInterval = setInterval(() => {
@@ -55,6 +59,7 @@ export default function Pipeline() {
           
           // အလုပ်ပြီးတာနဲ့ Storage ထဲက ဖျက်ပြီး Preview ကို သွားမယ်
           localStorage.removeItem('pendingAudio');
+          localStorage.removeItem('pendingScript');
           setTimeout(() => {
             router.push(`/preview?url=${encodeURIComponent(data.videoUrl)}`);
           }, 1500);
