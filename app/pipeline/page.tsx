@@ -46,35 +46,40 @@ export default function Pipeline() {
           body: formData
         });
 
-        // Backend က ပြန်လာတဲ့ Data ကို ဖမ်းပါမယ်
         let data;
         const contentType = response.headers.get("content-type");
         
         if (contentType && contentType.includes("application/json")) {
             data = await response.json();
         } else {
-            // Render စက် Crash သွားရင် HTML (Bad Gateway) ပြန်လာတတ်လို့ပါ
             const textError = await response.text();
             throw new Error(`Server Error (${response.status}): ${textError.substring(0, 100)}...`);
         }
 
-        // Backend က Success မဖြစ်ဘူးဆိုရင် Error အတိအကျကို ပြမယ်
         if (!response.ok || !data.success) {
           clearInterval(stepInterval);
           throw new Error(data.details || data.error || `Generation failed with status ${response.status}`);
         }
 
-        // အောင်မြင်သွားရင်
+        // ✅ အောင်မြင်သွားရင် လုပ်ဆောင်မည့် အပိုင်း
         clearInterval(stepInterval);
-        setCurrentStep(5); 
+        setCurrentStep(5); // Render complete အဆင့်သို့ ရွှေ့မည်
+        
         localStorage.removeItem('pendingAudio');
         localStorage.removeItem('pendingScript');
+
+        // Backend က ပို့ပေးလိုက်တဲ့ fullPath ကို ယူပါမယ်
+        const finalVideoUrl = data.fullPath;
+
         setTimeout(() => {
-          router.push(`/preview?url=${encodeURIComponent(data.videoUrl)}`);
-        }, 1500);
+          // ၁။ ဗီဒီယိုကို Tab အသစ်မှာ တန်းဖွင့်ပေးလိုက်ပါမယ် (အဲဒီမှာ Download ဆွဲလို့ရပါပြီ)
+          window.open(finalVideoUrl, '_blank');
+          
+          // ၂။ Page ကို Home Page (/) ဆီ ပြန်ပို့လိုက်ပါမယ် (404 မဖြစ်အောင်လို့ပါ)
+          router.push("/");
+        }, 2000);
 
       } catch (err: any) {
-        // ဖုန်းစခရင်မှာ Error ကို အတိအကျ ပေါ်စေမယ့်နေရာပါ
         setError(err.message || "Network Error: Failed to connect to Backend.");
         console.error("Pipeline Error:", err);
       }
@@ -83,54 +88,36 @@ export default function Pipeline() {
     generateReel();
   }, [router]);
 
+  // ... Error handling UI ...
   if (error) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
         <h2 className="text-2xl font-bold mb-2">Oops! Something went wrong</h2>
-        
-        {/* Error အတိအကျကို ဖတ်လို့လွယ်အောင် Box လေးနဲ့ ပြပေးထားပါတယ် */}
         <div className="bg-red-950/50 border border-red-900/50 p-4 rounded-xl mb-6 max-w-md w-full text-left overflow-x-auto">
-            <p className="text-red-200 font-mono text-sm whitespace-pre-wrap leading-relaxed">
-                {error}
-            </p>
+            <p className="text-red-200 font-mono text-sm whitespace-pre-wrap leading-relaxed">{error}</p>
         </div>
-
-        <button 
-            onClick={() => router.push("/")} 
-            className="px-8 py-3 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 transition-colors"
-        >
+        <button onClick={() => router.push("/")} className="px-8 py-3 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 transition-colors">
             Go Back & Try Again
         </button>
       </main>
     );
   }
 
+  // ... Progress UI ...
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md bg-gray-900/50 backdrop-blur-lg border border-gray-800 rounded-3xl p-8">
         <h2 className="text-2xl font-bold mb-8 text-center text-white">Building Your Reel</h2>
-        
         <div className="space-y-6">
           {steps.map((step, idx) => {
             const isActive = idx === currentStep;
             const isDone = idx < currentStep;
-
             return (
-              <motion.div 
-                key={step}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.1 }}
+              <motion.div key={step} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.1 }}
                 className={`flex items-center gap-4 ${isDone ? 'text-white' : isActive ? 'text-[#FF6B00]' : 'text-gray-600'}`}
               >
-                {isDone ? (
-                  <CheckCircle2 className="w-6 h-6 text-green-500" />
-                ) : isActive ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-[#FF6B00]" />
-                ) : (
-                  <div className="w-6 h-6 rounded-full border-2 border-gray-700" />
-                )}
+                {isDone ? ( <CheckCircle2 className="w-6 h-6 text-green-500" /> ) : isActive ? ( <Loader2 className="w-6 h-6 animate-spin text-[#FF6B00]" /> ) : ( <div className="w-6 h-6 rounded-full border-2 border-gray-700" /> )}
                 <span className={`font-medium ${isActive ? 'animate-pulse' : ''}`}>{step}</span>
               </motion.div>
             );
