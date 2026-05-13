@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
@@ -17,9 +17,10 @@ export default function Pipeline() {
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const generateReel = async () => {
+    const startGeneration = async () => {
       try {
         const dataUrl = localStorage.getItem('pendingAudio');
         const pendingScript = localStorage.getItem('pendingScript'); 
@@ -35,89 +36,100 @@ export default function Pipeline() {
         formData.append('audio', audioBlob, 'upload.mp3');
         formData.append('script', pendingScript); 
 
-        const stepInterval = setInterval(() => {
-          setCurrentStep((prev) => (prev < 4 ? prev + 1 : prev));
-        }, 4000);
-
-        const BACKEND_URL = "https://autoreelai-backend.onrender.com/api/generate";
+        const BACKEND_URL = "https://autoreelai-backend.onrender.com";
         
-        const response = await fetch(BACKEND_URL, {
+        // ၁။ Job စတင်ရန် Post တင်မယ်
+        const response = await fetch(`${BACKEND_URL}/api/generate`, {
           method: 'POST',
           body: formData
         });
 
-        let data;
-        const contentType = response.headers.get("content-type");
-        
-        if (contentType && contentType.includes("application/json")) {
-            data = await response.json();
-        } else {
-            const textError = await response.text();
-            throw new Error(`Server Error (${response.status}): ${textError.substring(0, 100)}...`);
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Failed to start job: ${errText}`);
         }
 
-        if (!response.ok || !data.success) {
-          clearInterval(stepInterval);
-          throw new Error(data.details || data.error || `Generation failed with status ${response.status}`);
-        }
+        const { jobId } = await response.json();
+        console.log("Job started with ID:", jobId);
 
-        // ✅ အောင်မြင်သွားရင် လုပ်ဆောင်မည့် အပိုင်း
-        clearInterval(stepInterval);
-        setCurrentStep(5); // Render complete အဆင့်သို့ ရွှေ့မည်
-        
-        localStorage.removeItem('pendingAudio');
-        localStorage.removeItem('pendingScript');
+        // ၂။ ခြေလှမ်းအတုလေးတွေကို ဖြည်းဖြည်းချင်း တိုးပေးမယ် (UI အတွက်)
+        const stepInterval = setInterval(() => {
+          setCurrentStep((prev) => (prev < 4 ? prev + 1 : prev));
+        }, 5000);
 
-        // Backend က ပို့ပေးလိုက်တဲ့ fullPath ကို ယူပါမယ်
-        const finalVideoUrl = data.fullPath;
+        // ၃။ Polling စတင်မယ် (၅ စက္ကန့်တစ်ခါ Backend ကို အခြေအနေ မေးမယ်)
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            const statusRes = await fetch(`${BACKEND_URL}/api/status/${jobId}`);
+            const data = await statusRes.json();
 
-        setTimeout(() => {
-          // ၁။ ဗီဒီယိုကို Tab အသစ်မှာ တန်းဖွင့်ပေးလိုက်ပါမယ် (အဲဒီမှာ Download ဆွဲလို့ရပါပြီ)
-          window.open(finalVideoUrl, '_blank');
-          
-          // ၂။ Page ကို Home Page (/) ဆီ ပြန်ပို့လိုက်ပါမယ် (404 မဖြစ်အောင်လို့ပါ)
-          router.push("/");
-        }, 2000);
+            if (data.status === 'done') {
+              // Rendering ပြီးသွားပြီ
+              clearInterval(stepInterval);
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              
+              setCurrentStep(5); // Final step
+              localStorage.removeItem('pendingAudio');
+              localStorage.removeItem('pendingScript');
+
+              setTimeout(() => {
+                window.open(data.videoUrl, '_blank');
+                router.push("/");
+              }, 2000);
+
+            } else if (data.status === 'error') {
+              // Rendering မှာ Error တက်သွားပြီ
+              clearInterval(stepInterval);
+              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+              setError(data.error || "Backend rendering error occurred.");
+            }
+          } catch (pollErr) {
+            console.error("Polling error:", pollErr);
+            // Polling မှာ error တက်ရင် ခဏစောင့်မယ်၊ ချက်ချင်း မရပ်ပစ်ဘူး
+          }
+        }, 5000);
 
       } catch (err: any) {
         setError(err.message || "Network Error: Failed to connect to Backend.");
-        console.error("Pipeline Error:", err);
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       }
     };
 
-    generateReel();
+    startGeneration();
+
+    // Cleanup function
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
   }, [router]);
 
-  // ... Error handling UI ...
+  // Error UI နှင့် Progress UI အပိုင်းများ (အရင်အတိုင်း သုံးနိုင်ပါတယ်)
   if (error) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Oops! Something went wrong</h2>
-        <div className="bg-red-950/50 border border-red-900/50 p-4 rounded-xl mb-6 max-w-md w-full text-left overflow-x-auto">
-            <p className="text-red-200 font-mono text-sm whitespace-pre-wrap leading-relaxed">{error}</p>
+        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
+        <div className="bg-red-950/50 border border-red-900/50 p-4 rounded-xl mb-6 max-w-md w-full text-left">
+            <p className="text-red-200 font-mono text-sm whitespace-pre-wrap">{error}</p>
         </div>
-        <button onClick={() => router.push("/")} className="px-8 py-3 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 transition-colors">
-            Go Back & Try Again
+        <button onClick={() => router.push("/")} className="px-8 py-3 bg-white text-black font-semibold rounded-xl">
+            Try Again
         </button>
       </main>
     );
   }
 
-  // ... Progress UI ...
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6">
+    <main className="min-h-screen flex flex-col items-center justify-center p-6 text-white">
       <div className="w-full max-w-md bg-gray-900/50 backdrop-blur-lg border border-gray-800 rounded-3xl p-8">
-        <h2 className="text-2xl font-bold mb-8 text-center text-white">Building Your Reel</h2>
+        <h2 className="text-2xl font-bold mb-8 text-center">Building Your Reel</h2>
         <div className="space-y-6">
           {steps.map((step, idx) => {
             const isActive = idx === currentStep;
             const isDone = idx < currentStep;
             return (
-              <motion.div key={step} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.1 }}
-                className={`flex items-center gap-4 ${isDone ? 'text-white' : isActive ? 'text-[#FF6B00]' : 'text-gray-600'}`}
-              >
-                {isDone ? ( <CheckCircle2 className="w-6 h-6 text-green-500" /> ) : isActive ? ( <Loader2 className="w-6 h-6 animate-spin text-[#FF6B00]" /> ) : ( <div className="w-6 h-6 rounded-full border-2 border-gray-700" /> )}
+              <motion.div key={step} className={`flex items-center gap-4 ${isDone ? 'text-white' : isActive ? 'text-[#FF6B00]' : 'text-gray-600'}`}>
+                {isDone ? ( <CheckCircle2 className="w-6 h-6 text-green-500" /> ) : isActive ? ( <Loader2 className="w-6 h-6 animate-spin" /> ) : ( <div className="w-6 h-6 rounded-full border-2 border-gray-700" /> )}
                 <span className={`font-medium ${isActive ? 'animate-pulse' : ''}`}>{step}</span>
               </motion.div>
             );
