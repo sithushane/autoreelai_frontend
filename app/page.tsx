@@ -15,14 +15,21 @@ export default function Home() {
     if (!file || !script.trim()) return;
     setIsProcessing(true);
     
-    // File ကို Next.js Route တွေကြားထဲ သေချာပေါက် ပါသွားအောင် Base64 ပြောင်းပြီး သိမ်းပါမယ်
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      localStorage.setItem('pendingAudio', reader.result as string);
-      localStorage.setItem('pendingScript', script); // Script ကိုပါ တစ်ခါတည်း သိမ်းပါမယ်
+    try {
+      // ✅ Base64 အစား File ရဲ့ Memory လမ်းကြောင်း (Blob URL) အတိုလေးကိုပဲ ဖန်တီးလိုက်ပါမယ်
+      const objectUrl = URL.createObjectURL(file);
+      
+      // အဲဒီ လမ်းကြောင်းအတိုလေးကိုပဲ သိမ်းလိုက်တဲ့အတွက် 5MB Limit ကို လုံးဝ ကျော်သွားပါပြီ
+      localStorage.setItem('pendingAudio', objectUrl);
+      localStorage.setItem('pendingScript', script); 
+      
+      // နောက်စာမျက်နှာကို ကူးပါမယ်
       router.push("/pipeline");
-    };
+    } catch (error) {
+      console.error("Storage Error:", error);
+      alert("Error ဖြစ်ပေါ်နေပါသည်။");
+      setIsProcessing(false);
+    }
   };
 
   return (
