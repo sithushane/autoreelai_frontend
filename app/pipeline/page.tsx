@@ -36,9 +36,9 @@ export default function Pipeline() {
         formData.append('audio', audioBlob, 'upload.mp3');
         formData.append('script', pendingScript); 
 
-        const BACKEND_URL = "https://autoreelai-backend.onrender.com";
+        // ✅ Termux cloudflare URL သုံးတယ်
+        const BACKEND_URL = "https://less-conducting-rubber-heading.trycloudflare.com";
         
-        // ၁။ Job စတင်ရန် Post တင်မယ်
         const response = await fetch(`${BACKEND_URL}/api/generate`, {
           method: 'POST',
           body: formData
@@ -52,23 +52,20 @@ export default function Pipeline() {
         const { jobId } = await response.json();
         console.log("Job started with ID:", jobId);
 
-        // ၂။ ခြေလှမ်းအတုလေးတွေကို ဖြည်းဖြည်းချင်း တိုးပေးမယ် (UI အတွက်)
         const stepInterval = setInterval(() => {
           setCurrentStep((prev) => (prev < 4 ? prev + 1 : prev));
         }, 5000);
 
-        // ၃။ Polling စတင်မယ် (၅ စက္ကန့်တစ်ခါ Backend ကို အခြေအနေ မေးမယ်)
         pollIntervalRef.current = setInterval(async () => {
           try {
             const statusRes = await fetch(`${BACKEND_URL}/api/status/${jobId}`);
             const data = await statusRes.json();
 
             if (data.status === 'done') {
-              // Rendering ပြီးသွားပြီ
               clearInterval(stepInterval);
               if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
               
-              setCurrentStep(5); // Final step
+              setCurrentStep(5);
               localStorage.removeItem('pendingAudio');
               localStorage.removeItem('pendingScript');
 
@@ -78,14 +75,12 @@ export default function Pipeline() {
               }, 2000);
 
             } else if (data.status === 'error') {
-              // Rendering မှာ Error တက်သွားပြီ
               clearInterval(stepInterval);
               if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
               setError(data.error || "Backend rendering error occurred.");
             }
           } catch (pollErr) {
             console.error("Polling error:", pollErr);
-            // Polling မှာ error တက်ရင် ခဏစောင့်မယ်၊ ချက်ချင်း မရပ်ပစ်ဘူး
           }
         }, 5000);
 
@@ -97,13 +92,11 @@ export default function Pipeline() {
 
     startGeneration();
 
-    // Cleanup function
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
   }, [router]);
 
-  // Error UI နှင့် Progress UI အပိုင်းများ (အရင်အတိုင်း သုံးနိုင်ပါတယ်)
   if (error) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
@@ -139,4 +132,3 @@ export default function Pipeline() {
     </main>
   );
 }
-
