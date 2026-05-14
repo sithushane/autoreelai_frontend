@@ -36,8 +36,8 @@ export default function Pipeline() {
         formData.append('audio', audioBlob, 'upload.mp3');
         formData.append('script', pendingScript); 
 
-        // ✅ Environment Variable သုံးတယ်
-        const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+        // ✅ Termux က လွှင့်ထားတဲ့ Cloudflare လင့်ခ်ကို တိုက်ရိုက် ထည့်ပေးလိုက်ပါပြီ
+        const BACKEND_URL = "https://heads-also-systems-floyd.trycloudflare.com";
         
         const response = await fetch(`${BACKEND_URL}/api/generate`, {
           method: 'POST',
@@ -102,7 +102,7 @@ export default function Pipeline() {
       <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
         <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
-        <div className="bg-red-950/50 border border-red-900/50 p-4 rounded-xl mb-6 max-w-md w-full text-left">
+        <div className="bg-red-950/50 border border-red-900/50 p-4 rounded-xl mb-6 max-w-md w-full text-left overflow-x-auto">
             <p className="text-red-200 font-mono text-sm whitespace-pre-wrap">{error}</p>
         </div>
         <button onClick={() => router.push("/")} className="px-8 py-3 bg-white text-black font-semibold rounded-xl">
@@ -132,3 +132,4 @@ export default function Pipeline() {
     </main>
   );
 }
+
