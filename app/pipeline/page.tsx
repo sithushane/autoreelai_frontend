@@ -31,13 +31,16 @@ export default function Pipeline() {
 
         const responseBlob = await fetch(dataUrl);
         const audioBlob = await responseBlob.blob();
+        
+        // ✅ ဖုန်းရဲ့ RAM သက်သာသွားအောင် သုံးပြီးသား Blob Memory ကို ချက်ချင်း ဖျက်ပစ်ပါမယ်
+        URL.revokeObjectURL(dataUrl); 
 
         const formData = new FormData();
         formData.append('audio', audioBlob, 'upload.mp3');
         formData.append('script', pendingScript); 
 
-        // ✅ Termux (localhost.run) က ရတဲ့ လင့်ခ်အသစ်စက်စက်ကို အစားထိုးလိုက်ပါပြီ
-        const BACKEND_URL = "http://localhost:10000";
+        // ✅ လမ်းကြောင်းမလွဲအောင် localhost အစား 127.0.0.1 လို့ အတိအကျ ပြောင်းလိုက်ပါပြီ
+        const BACKEND_URL = "http://127.0.0.1:10000";
         
         const response = await fetch(`${BACKEND_URL}/api/generate`, {
           method: 'POST',
