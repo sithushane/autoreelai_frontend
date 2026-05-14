@@ -37,7 +37,7 @@ export default function Pipeline() {
         formData.append('script', pendingScript); 
 
         // ✅ Termux (localhost.run) က ရတဲ့ လင့်ခ်အသစ်စက်စက်ကို အစားထိုးလိုက်ပါပြီ
-        const BACKEND_URL = "https://8009a18c54e4db.lhr.life";
+        const BACKEND_URL = "http://localhost:10000";
         
         const response = await fetch(`${BACKEND_URL}/api/generate`, {
           method: 'POST',
