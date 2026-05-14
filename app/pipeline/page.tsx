@@ -36,8 +36,8 @@ export default function Pipeline() {
         formData.append('audio', audioBlob, 'upload.mp3');
         formData.append('script', pendingScript); 
 
-        // ✅ Termux cloudflare URL သုံးတယ်
-        const BACKEND_URL = "https://less-conducting-rubber-heading.trycloudflare.com";
+        // ✅ Environment Variable သုံးတယ်
+        const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "";
         
         const response = await fetch(`${BACKEND_URL}/api/generate`, {
           method: 'POST',
