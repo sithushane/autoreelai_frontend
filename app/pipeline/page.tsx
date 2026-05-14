@@ -36,8 +36,8 @@ export default function Pipeline() {
         formData.append('audio', audioBlob, 'upload.mp3');
         formData.append('script', pendingScript); 
 
-        // ✅ Termux က လွှင့်ထားတဲ့ Cloudflare လင့်ခ်ကို တိုက်ရိုက် ထည့်ပေးလိုက်ပါပြီ
-        const BACKEND_URL = "https://heads-also-systems-floyd.trycloudflare.com";
+        // ✅ Termux (localhost.run) က ရတဲ့ လင့်ခ်အသစ်စက်စက်ကို အစားထိုးလိုက်ပါပြီ
+        const BACKEND_URL = "https://8009a18c54e4db.lhr.life";
         
         const response = await fetch(`${BACKEND_URL}/api/generate`, {
           method: 'POST',
