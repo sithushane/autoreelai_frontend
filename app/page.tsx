@@ -1,88 +1,124 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { UploadCloud, Music, Clock, Smartphone, Loader2, FileText } from "lucide-react";
+import { useState } from 'react';
 
-export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [script, setScript] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const router = useRouter();
+export default function AutoReelStudio() {
+    const [topic, setTopic] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('');
+    const [videoUrl, setVideoUrl] = useState('');
 
-  const handleUpload = () => {
-    // File နဲ့ Script နှစ်ခုလုံး မရှိရင် အလုပ်မလုပ်အောင် တားထားပါတယ်
-    if (!file || !script.trim()) return;
-    setIsProcessing(true);
-    
-    try {
-      // ✅ Base64 အစား File ရဲ့ Memory လမ်းကြောင်း (Blob URL) အတိုလေးကိုပဲ ဖန်တီးလိုက်ပါမယ်
-      const objectUrl = URL.createObjectURL(file);
-      
-      // အဲဒီ လမ်းကြောင်းအတိုလေးကိုပဲ သိမ်းလိုက်တဲ့အတွက် 5MB Limit ကို လုံးဝ ကျော်သွားပါပြီ
-      localStorage.setItem('pendingAudio', objectUrl);
-      localStorage.setItem('pendingScript', script); 
-      
-      // နောက်စာမျက်နှာကို ကူးပါမယ်
-      router.push("/pipeline");
-    } catch (error) {
-      console.error("Storage Error:", error);
-      alert("Error ဖြစ်ပေါ်နေပါသည်။");
-      setIsProcessing(false);
-    }
-  };
+    const handleGenerate = async () => {
+        if (!topic.trim()) {
+            alert("ကျေးဇူးပြု၍ ဗီဒီယိုခေါင်းစဉ် ရိုက်ထည့်ပါ။");
+            return;
+        }
 
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 relative">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#FF6B00] opacity-10 blur-[120px] rounded-full pointer-events-none" />
+        setIsLoading(true);
+        setVideoUrl('');
+        setStatusMessage('🚀 စက်ရုံစတင်လည်ပတ်နေပါပြီ...');
 
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md z-10"
-      >
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold mb-2">AutoReel <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF6B00] to-[#FFA800]">AI</span></h1>
-          <p className="text-gray-400">Audio + Script = Viral Reel</p>
+        try {
+            const response = await fetch('http://localhost:10000/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ topic: topic })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            if (data.jobId) {
+                setStatusMessage('⏳ ဇာတ်ညွှန်းနှင့် အသံဖန်တီးနေပါသည်...');
+                checkJobStatus(data.jobId);
+            }
+
+        } catch (error: any) {
+            console.error("API Error:", error);
+            alert("Error: " + error.message);
+            setIsLoading(false);
+            setStatusMessage('');
+        }
+    };
+
+    const checkJobStatus = (jobId: string) => {
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(`http://localhost:10000/api/status/${jobId}`);
+                const data = await response.json();
+
+                if (data.status === 'done') {
+                    clearInterval(interval);
+                    setVideoUrl(data.videoUrl);
+                    setStatusMessage('✅ ဗီဒီယို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ!');
+                    setIsLoading(false);
+                } else if (data.status === 'error') {
+                    clearInterval(interval);
+                    setStatusMessage('❌ Error: ဗီဒီယိုဖန်တီးမှု ရပ်တန့်သွားပါသည်။');
+                    setIsLoading(false);
+                } else {
+                    setStatusMessage('🎬 ဗီဒီယို Rendering လုပ်နေပါသည်... (၂-၃ မိနစ်ခန့် ကြာနိုင်ပါသည်)');
+                }
+            } catch (error) {
+                console.error("Status Check Error:", error);
+            }
+        }, 5000);
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-10 font-sans">
+            <h1 className="text-4xl font-bold mb-8 text-blue-400">AutoReel AI Studio 🎬</h1>
+
+            <div className="w-full max-w-2xl bg-gray-800 p-8 rounded-xl shadow-2xl">
+                <label className="block text-lg mb-2 font-medium">ဗီဒီယို ခေါင်းစဉ် (Topic / Idea):</label>
+                <textarea 
+                    className="w-full p-4 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-blue-500 mb-6"
+                    rows={4}
+                    placeholder="ဥပမာ - ပုဂံခေတ်က လျှို့ဝှက်ချက်၊ စီးပွားရေး အကြံဉာဏ်၊ သို့မဟုတ် Schwarzman Scholars ပညာသင်ဆုအကြောင်း..."
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    disabled={isLoading}
+                />
+
+                <button 
+                    onClick={handleGenerate}
+                    disabled={isLoading}
+                    className={`w-full py-4 rounded-lg font-bold text-xl transition-all ${
+                        isLoading ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+                    }`}
+                >
+                    {isLoading ? 'ဖန်တီးနေပါသည်...' : '✨ Generate Reel'}
+                </button>
+
+                {statusMessage && (
+                    <div className="mt-6 text-center text-lg animate-pulse text-yellow-400">
+                        {statusMessage}
+                    </div>
+                )}
+
+                {videoUrl && (
+                    <div className="mt-8 flex flex-col items-center animate-fade-in">
+                        <h2 className="text-2xl font-bold mb-4 text-green-400">🎉 သင့်ဗီဒီယို အဆင်သင့်ဖြစ်ပါပြီ!</h2>
+                        <video 
+                            src={videoUrl} 
+                            controls 
+                            className="w-full max-w-sm rounded-lg shadow-lg border-2 border-green-500"
+                        />
+                        <a 
+                            href={videoUrl} 
+                            download
+                            className="mt-4 px-6 py-2 bg-green-600 rounded-lg hover:bg-green-500 transition-colors"
+                        >
+                            ⬇️ Download Video
+                        </a>
+                    </div>
+                )}
+            </div>
         </div>
-
-        <div className="bg-gray-900/50 backdrop-blur-lg border border-gray-800 rounded-3xl p-6 mb-6">
-          <label className="border-2 border-dashed border-gray-700 hover:border-[#FF6B00] transition-colors rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer mb-4 group">
-            <UploadCloud className="w-12 h-12 text-gray-500 group-hover:text-[#FF6B00] transition-colors mb-4" />
-            <span className="font-semibold text-center">{file ? file.name : "Drop your audio here"}</span>
-            <span className="text-sm text-gray-500 mt-2">or click to browse (MP3, WAV, M4A)</span>
-            <input type="file" accept="audio/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-          </label>
-
-          {/* Script Input အသစ်ထည့်ထားတဲ့နေရာ */}
-          <div className="mb-6 relative">
-            <div className="absolute top-3 left-3 text-gray-500"><FileText size={18} /></div>
-            <textarea 
-              placeholder="Paste your audio script here..."
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              className="w-full bg-gray-800/50 border border-gray-700 rounded-xl p-3 pl-10 text-sm text-white h-24 focus:outline-none focus:border-[#FF6B00] resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 text-center text-xs text-gray-400 mb-6">
-            <div className="flex flex-col items-center gap-1"><Music size={16}/> Burmese + Eng</div>
-            <div className="flex flex-col items-center gap-1"><Clock size={16}/> Any Length</div>
-            <div className="flex flex-col items-center gap-1"><Smartphone size={16}/> 9:16 Output</div>
-          </div>
-
-          <button 
-            onClick={handleUpload}
-            disabled={!file || !script.trim() || isProcessing}
-            className="w-full flex items-center justify-center py-4 rounded-xl font-bold text-white bg-gradient-to-r from-[#FF6B00] to-[#FFA800] disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95 shadow-lg shadow-orange-500/20"
-          >
-            {isProcessing ? <Loader2 className="animate-spin w-6 h-6" /> : "Start AutoReel Pipeline"}
-          </button>
-        </div>
-        
-        <p className="text-center text-xs text-gray-600">All processing happens securely in the cloud.</p>
-      </motion.div>
-    </main>
-  );
+    );
 }
 
