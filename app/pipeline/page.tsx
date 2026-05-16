@@ -1,138 +1,124 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { useState } from 'react';
 
-const steps = [
-  "Analyzing Script & Audio",
-  "Planning Video Scenes",
-  "Fetching Stock Footage",
-  "Selecting Background Music",
-  "Rendering Captions",
-  "Rendering Reel"
-];
+export default function AutoReelStudio() {
+    const [topic, setTopic] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [statusMessage, setStatusMessage] = useState('');
+    const [videoUrl, setVideoUrl] = useState('');
 
-export default function Pipeline() {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    const startGeneration = async () => {
-      try {
-        const dataUrl = localStorage.getItem('pendingAudio');
-        const pendingScript = localStorage.getItem('pendingScript'); 
-
-        if (!dataUrl || !pendingScript) {
-          throw new Error("Missing audio or script. Please upload again.");
+    const handleGenerate = async () => {
+        if (!topic.trim()) {
+            alert("ကျေးဇူးပြု၍ ဗီဒီယိုခေါင်းစဉ် ရိုက်ထည့်ပါ။");
+            return;
         }
 
-        const responseBlob = await fetch(dataUrl);
-        const audioBlob = await responseBlob.blob();
-        
-        // ✅ ဖုန်းရဲ့ RAM သက်သာသွားအောင် သုံးပြီးသား Blob Memory ကို ချက်ချင်း ဖျက်ပစ်ပါမယ်
-        URL.revokeObjectURL(dataUrl); 
+        setIsLoading(true);
+        setVideoUrl('');
+        setStatusMessage('🚀 စက်ရုံစတင်လည်ပတ်နေပါပြီ...');
 
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'upload.mp3');
-        formData.append('script', pendingScript); 
+        try {
+            const response = await fetch('http://localhost:10000/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ topic: topic })
+            });
 
-        // ✅ လမ်းကြောင်းမလွဲအောင် localhost အစား 127.0.0.1 လို့ အတိအကျ ပြောင်းလိုက်ပါပြီ
-        const BACKEND_URL = "http://127.0.0.1:10000";
-        
-        const response = await fetch(`${BACKEND_URL}/api/generate`, {
-          method: 'POST',
-          body: formData
-        });
+            const data = await response.json();
 
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`Failed to start job: ${errText}`);
-        }
-
-        const { jobId } = await response.json();
-        console.log("Job started with ID:", jobId);
-
-        const stepInterval = setInterval(() => {
-          setCurrentStep((prev) => (prev < 4 ? prev + 1 : prev));
-        }, 5000);
-
-        pollIntervalRef.current = setInterval(async () => {
-          try {
-            const statusRes = await fetch(`${BACKEND_URL}/api/status/${jobId}`);
-            const data = await statusRes.json();
-
-            if (data.status === 'done') {
-              clearInterval(stepInterval);
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              
-              setCurrentStep(5);
-              localStorage.removeItem('pendingAudio');
-              localStorage.removeItem('pendingScript');
-
-              setTimeout(() => {
-                window.open(data.videoUrl, '_blank');
-                router.push("/");
-              }, 2000);
-
-            } else if (data.status === 'error') {
-              clearInterval(stepInterval);
-              if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-              setError(data.error || "Backend rendering error occurred.");
+            if (data.error) {
+                throw new Error(data.error);
             }
-          } catch (pollErr) {
-            console.error("Polling error:", pollErr);
-          }
+
+            if (data.jobId) {
+                setStatusMessage('⏳ ဇာတ်ညွှန်းနှင့် အသံဖန်တီးနေပါသည်...');
+                checkJobStatus(data.jobId);
+            }
+
+        } catch (error: any) {
+            console.error("API Error:", error);
+            alert("Error: " + error.message);
+            setIsLoading(false);
+            setStatusMessage('');
+        }
+    };
+
+    const checkJobStatus = (jobId: string) => {
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(`http://localhost:10000/api/status/${jobId}`);
+                const data = await response.json();
+
+                if (data.status === 'done') {
+                    clearInterval(interval);
+                    setVideoUrl(data.videoUrl);
+                    setStatusMessage('✅ ဗီဒီယို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ!');
+                    setIsLoading(false);
+                } else if (data.status === 'error') {
+                    clearInterval(interval);
+                    setStatusMessage('❌ Error: ဗီဒီယိုဖန်တီးမှု ရပ်တန့်သွားပါသည်။');
+                    setIsLoading(false);
+                } else {
+                    setStatusMessage('🎬 ဗီဒီယို Rendering လုပ်နေပါသည်... (၂-၃ မိနစ်ခန့် ကြာနိုင်ပါသည်)');
+                }
+            } catch (error) {
+                console.error("Status Check Error:", error);
+            }
         }, 5000);
-
-      } catch (err: any) {
-        setError(err.message || "Network Error: Failed to connect to Backend.");
-        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      }
     };
 
-    startGeneration();
-
-    return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    };
-  }, [router]);
-
-  if (error) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
-        <div className="bg-red-950/50 border border-red-900/50 p-4 rounded-xl mb-6 max-w-md w-full text-left overflow-x-auto">
-            <p className="text-red-200 font-mono text-sm whitespace-pre-wrap">{error}</p>
-        </div>
-        <button onClick={() => router.push("/")} className="px-8 py-3 bg-white text-black font-semibold rounded-xl">
-            Try Again
-        </button>
-      </main>
-    );
-  }
+        <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-10 font-sans">
+            <h1 className="text-4xl font-bold mb-8 text-blue-400">AutoReel AI Studio 🎬</h1>
 
-  return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 text-white">
-      <div className="w-full max-w-md bg-gray-900/50 backdrop-blur-lg border border-gray-800 rounded-3xl p-8">
-        <h2 className="text-2xl font-bold mb-8 text-center">Building Your Reel</h2>
-        <div className="space-y-6">
-          {steps.map((step, idx) => {
-            const isActive = idx === currentStep;
-            const isDone = idx < currentStep;
-            return (
-              <motion.div key={step} className={`flex items-center gap-4 ${isDone ? 'text-white' : isActive ? 'text-[#FF6B00]' : 'text-gray-600'}`}>
-                {isDone ? ( <CheckCircle2 className="w-6 h-6 text-green-500" /> ) : isActive ? ( <Loader2 className="w-6 h-6 animate-spin" /> ) : ( <div className="w-6 h-6 rounded-full border-2 border-gray-700" /> )}
-                <span className={`font-medium ${isActive ? 'animate-pulse' : ''}`}>{step}</span>
-              </motion.div>
-            );
-          })}
+            <div className="w-full max-w-2xl bg-gray-800 p-8 rounded-xl shadow-2xl">
+                <label className="block text-lg mb-2 font-medium">ဗီဒီယို ခေါင်းစဉ် (Topic / Idea):</label>
+                <textarea 
+                    className="w-full p-4 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-blue-500 mb-6"
+                    rows={4}
+                    placeholder="ဥပမာ - ပုဂံခေတ်က လျှို့ဝှက်ချက်၊ စီးပွားရေး အကြံဉာဏ်၊ သို့မဟုတ် Schwarzman Scholars ပညာသင်ဆုအကြောင်း..."
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    disabled={isLoading}
+                />
+
+                <button 
+                    onClick={handleGenerate}
+                    disabled={isLoading}
+                    className={`w-full py-4 rounded-lg font-bold text-xl transition-all ${
+                        isLoading ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'
+                    }`}
+                >
+                    {isLoading ? 'ဖန်တီးနေပါသည်...' : '✨ Generate Reel'}
+                </button>
+
+                {statusMessage && (
+                    <div className="mt-6 text-center text-lg animate-pulse text-yellow-400">
+                        {statusMessage}
+                    </div>
+                )}
+
+                {videoUrl && (
+                    <div className="mt-8 flex flex-col items-center animate-fade-in">
+                        <h2 className="text-2xl font-bold mb-4 text-green-400">🎉 သင့်ဗီဒီယို အဆင်သင့်ဖြစ်ပါပြီ!</h2>
+                        <video 
+                            src={videoUrl} 
+                            controls 
+                            className="w-full max-w-sm rounded-lg shadow-lg border-2 border-green-500"
+                        />
+                        <a 
+                            href={videoUrl} 
+                            download
+                            className="mt-4 px-6 py-2 bg-green-600 rounded-lg hover:bg-green-500 transition-colors"
+                        >
+                            ⬇️ Download Video
+                        </a>
+                    </div>
+                )}
+            </div>
         </div>
-      </div>
-    </main>
-  );
+    );
 }
 
